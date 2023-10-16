@@ -5,6 +5,7 @@ pub enum Player {
 }
 
 impl Player {
+    #[must_use]
     pub fn next(self) -> Player {
         match self {
             Player::Black => Player::White,
@@ -15,6 +16,13 @@ impl Player {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FieldState(pub Option<Player>);
+
+impl FieldState {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_none()
+    }
+}
 
 impl std::fmt::Display for FieldState {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -27,35 +35,56 @@ impl std::fmt::Display for FieldState {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Hor {
+    Left,
+    Mid,
+    Right,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Vert {
+    Top,
+    Mid,
+    Bottom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FieldName {
-    pub x: usize,
-    pub y: usize,
+    pub v: Vert,
+    pub h: Hor,
 }
 
-pub struct Action {
-    pub field_name: FieldName,
+impl std::fmt::Display for FieldName {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self.v)?;
+        write!(f, ", ")?;
+        write!(f, "{:?}", self.h)?;
+        Ok(())
+    }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GameValue {
     Unknown,
     Draw,
-    Won(Player),
+    Win(Player),
 }
 
 #[derive(Debug)]
 pub struct TTT {
     player: Player,
-    board: [[FieldState; 3]; 3], // 3x3 matrix
+    board: [[FieldState; 3]; 3],
 }
 
-#[derive(PartialEq)]
-enum Occupancy {
-    Empty,
-    Player(Player),
-    Both,
+impl Default for TTT {
+    fn default() -> Self {
+	Self::new()
+    }
 }
 
 impl TTT {
+    #[must_use]
     pub fn new() -> TTT {
         TTT {
             player: Player::White,
@@ -63,89 +92,114 @@ impl TTT {
         }
     }
 
+    #[must_use]
     pub fn player(&self) -> Player {
         self.player
     }
-    pub fn get(&self, name: &FieldName) -> &FieldState {
-        &self.board[name.x][name.y]
+
+    #[must_use]
+    pub fn get(&self, name: &FieldName) -> FieldState {
+        self.board[name.v as usize][name.h as usize]
     }
 
+    fn set(&mut self, name: FieldName, state: FieldState) {
+        self.board[name.v as usize][name.h as usize] = state;
+    }
+
+    #[must_use]
     pub fn game_value(&self) -> GameValue {
-        fn make_win(
-            a: (usize, usize),
-            (bx, by): (usize, usize),
-            (cx, cy): (usize, usize),
-        ) -> [FieldName; 3] {
+        let hor = |v: Vert| {
             [
-                FieldName { x: a.0, y: a.1 },
-                FieldName { x: bx, y: by },
-                FieldName { x: cx, y: cy },
+                FieldName { h: Hor::Left, v },
+                FieldName { h: Hor::Mid, v },
+                FieldName { h: Hor::Right, v },
             ]
-        }
-        // there are 8 ways to win
-        let mut win_lines = vec![];
-        for i in 0..2 {
-            win_lines.push(make_win((0, i), (1, i), (2, i)));
-            win_lines.push(make_win((i, 0), (i, 1), (i, 2)));
-        }
-        win_lines.push(make_win((0, 0), (1, 1), (2, 2)));
-        win_lines.push(make_win((0, 2), (1, 1), (2, 0)));
+        };
+        let vert = |h: Hor| {
+            [
+                FieldName { h, v: Vert::Top },
+                FieldName { h, v: Vert::Mid },
+                FieldName { h, v: Vert::Bottom },
+            ]
+        };
+        let win_lines: [[FieldName; 3]; 8] = [
+            hor(Vert::Top),
+            hor(Vert::Mid),
+            hor(Vert::Bottom),
+            vert(Hor::Left),
+            vert(Hor::Mid),
+            vert(Hor::Right),
+            [
+                FieldName {
+                    h: Hor::Left,
+                    v: Vert::Top,
+                },
+                FieldName {
+                    h: Hor::Mid,
+                    v: Vert::Mid,
+                },
+                FieldName {
+                    h: Hor::Right,
+                    v: Vert::Bottom,
+                },
+            ],
+            [
+                FieldName {
+                    h: Hor::Right,
+                    v: Vert::Top,
+                },
+                FieldName {
+                    h: Hor::Mid,
+                    v: Vert::Mid,
+                },
+                FieldName {
+                    h: Hor::Left,
+                    v: Vert::Bottom,
+                },
+            ],
+        ];
 
-        for win in &win_lines {
-            if self.get(&win[0]) == self.get(&win[1])
-                && self.get(&win[0]) == self.get(&win[2])
-                && self.get(&win[0]).0.is_some()
-            {
-                return GameValue::Won(self.get(&win[0]).0.unwrap());
+        for [a, b, c] in &win_lines {
+            match self.get(a).0 {
+                Some(player) if Some(player) == self.get(b).0 && Some(player) == self.get(c).0 => {
+                    return GameValue::Win(player);
+                }
+                _ => continue,
             }
         }
+
         // if there is a win_line with at most a single player, then a win is still possible
-        if win_lines
-            .iter()
-            .all(|[a, b, c]| self.count_players(a, b, c) == Occupancy::Both)
-        {
-            return GameValue::Draw;
-        }
-
-        GameValue::Unknown
-    }
-
-    fn count_players(&self, a: &FieldName, b: &FieldName, c: &FieldName) -> Occupancy {
-        fn update_occ(occ: Occupancy, fs: FieldState) -> Occupancy {
-            match (occ, fs.0) {
-                (o, None) => o,
-                (Occupancy::Empty, Some(p)) => Occupancy::Player(p),
-                (Occupancy::Player(p), Some(q)) if p == q => Occupancy::Player(p),
-                _ => Occupancy::Both,
+        for [a, b, c] in &win_lines {
+            match self.get(a).0 {
+                Some(player)
+                    if Some(player.next()) != self.get(b).0
+                        && Some(player.next()) != self.get(c).0 =>
+                {
+                    return GameValue::Unknown
+                }
+                None => match self.get(b).0 {
+                    Some(player) if Some(player.next()) != self.get(c).0 => {
+                        return GameValue::Unknown
+                    }
+                    None => return GameValue::Unknown,
+                    _ => continue,
+                },
+                _ => continue,
             }
         }
-        [a, b, c]
-            .iter()
-            .map(|n| self.get_field(n))
-            .fold(Occupancy::Empty, update_occ)
-        //        let res = Occupancy::Empty;
+
+        GameValue::Draw
     }
 
-    pub fn is_valid_field_name(&self, name: &FieldName) -> bool {
-        name.x < self.board.len() && name.y < self.board[0].len()
-    }
-
-    pub fn is_valid_action(&self, action: &Action) -> bool {
+    #[must_use]
+    pub fn is_valid_action(&self, field_name: FieldName) -> bool {
         // an action is valid if it fills an empty field
-        self.get_field(&action.field_name).0.is_none()
+        self.get(&field_name).is_empty()
     }
 
-    fn set_field_state(&mut self, name: &FieldName, state: FieldState) {
-        self.board[name.x][name.y] = state;
-    }
-
-    fn get_field(&self, name: &FieldName) -> FieldState {
-        self.board[name.x][name.y]
-    }
-
-    pub fn act(&mut self, action: &Action) -> bool {
-        if self.is_valid_action(action) {
-            self.set_field_state(&action.field_name, FieldState(Some(self.player)));
+    pub fn act(&mut self, field_name: FieldName) -> bool {
+        if self.is_valid_action(field_name) {
+            self.set(field_name, FieldState(Some(self.player)));
             self.player = self.player.next();
             true
         } else {
@@ -158,18 +212,22 @@ impl std::fmt::Display for TTT {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "It is {:?}'s turn.", self.player)?;
         let width = 3;
-        write!(f, "{:width$}", "", width = width)?;
-        for col in 1..=self.board[0].len() {
-            write!(f, "{:^width$}", col, width = width)?
-        }
-        writeln!(f)?;
-        for (row_num, row) in self.board.iter().enumerate() {
-            write!(f, "{:^width$}", row_num + 1, width = width)?;
-            for square in row.iter() {
-                write!(f, "{:^width$}", format!("{}", square), width = width)?
+        writeln!(
+            f,
+            "{:width$}{l:^width$}{m:^width$}{r:^width$}",
+            "",
+            l = "l",
+            m = "m",
+            r = "r",
+            width = width
+        )?;
+        for (symbol, row) in ['t', 'm', 'b'].iter().zip(self.board.iter()) {
+            write!(f, "{symbol:^width$}")?;
+            for field in row {
+                write!(f, "{:^width$}", format!("{}", field), width = width)?;
             }
             writeln!(f)?;
         }
-        writeln!(f)
+	Ok(())
     }
 }
