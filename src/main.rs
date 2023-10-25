@@ -10,11 +10,11 @@
 
 use std::io::Write;
 
-use tic_tac_toe::{FieldName, GameValue, Hor, Vert, TTT};
+use tic_tac_toe::{FieldName, GameValue, Hor, Vert, Game};
 
 fn main() {
     println!("Welcome to Tic Tac Toe!");
-    let mut game = TTT::new();
+    let mut game = Game::new();
     loop {
         println!("{}", &game);
         match game.game_value() {

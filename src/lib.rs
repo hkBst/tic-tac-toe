@@ -72,21 +72,21 @@ pub enum GameValue {
 }
 
 #[derive(Debug)]
-pub struct TTT {
+pub struct Game {
     player: Player,
     board: [[FieldState; 3]; 3],
 }
 
-impl Default for TTT {
+impl Default for Game {
     fn default() -> Self {
 	Self::new()
     }
 }
 
-impl TTT {
+impl Game {
     #[must_use]
-    pub fn new() -> TTT {
-        TTT {
+    pub fn new() -> Game {
+        Game {
             player: Player::White,
             board: [[FieldState(None); 3]; 3],
         }
@@ -208,7 +208,7 @@ impl TTT {
     }
 }
 
-impl std::fmt::Display for TTT {
+impl std::fmt::Display for Game {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "It is {:?}'s turn.", self.player)?;
         let width = 3;
