@@ -1,21 +1,37 @@
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Player {
-    Black,
-    White,
+//! A simple and safe [tic-tac-toe](https://en.wikipedia.org/wiki/Tic-tac-toe) implementation.
+
+use std::fmt::Display;
+
+/// sides of play
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Side {
+    X,
+    O,
 }
 
-impl Player {
+impl Side {
     #[must_use]
-    pub fn next(self) -> Player {
+    pub fn next(self) -> Side {
         match self {
-            Player::Black => Player::White,
-            Player::White => Player::Black,
+            Side::X => Side::O,
+            Side::O => Side::X,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FieldState(pub Option<Player>);
+impl Display for Side {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Side::X => write!(f, "×")?,// or ❌
+            Side::O => write!(f, "○")?,// or ⭕
+        }
+        Ok(())
+    }
+}
+
+/// state of a field
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FieldState(pub Option<Side>);
 
 impl FieldState {
     #[must_use]
@@ -24,38 +40,40 @@ impl FieldState {
     }
 }
 
-impl std::fmt::Display for FieldState {
+impl Display for FieldState {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self.0 {
-            None => write!(f, "_")?,
-            Some(Player::Black) => write!(f, "B")?,
-            Some(Player::White) => write!(f, "W")?,
+            None => write!(f, " ")?,
+            Some(p) => write!(f, "{p}")?,
         }
         Ok(())
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// horizontal coordinates
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Hor {
     Left,
     Mid,
     Right,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// vertical coordinates
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Vert {
     Top,
     Mid,
     Bottom,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// a coordinate designation for a field
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldName {
     pub v: Vert,
     pub h: Hor,
 }
 
-impl std::fmt::Display for FieldName {
+impl Display for FieldName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{:?}", self.v)?;
         write!(f, ", ")?;
@@ -64,22 +82,26 @@ impl std::fmt::Display for FieldName {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// value of a gamestate
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GameValue {
     Unknown,
     Draw,
-    Win(Player),
+    Win(Side),
 }
 
-#[derive(Debug)]
+type Board = [[FieldState; 3]; 3];
+
+/// board and side to play
+#[derive(Clone, Debug)]
 pub struct Game {
-    player: Player,
-    board: [[FieldState; 3]; 3],
+    side: Side,
+    board: Board,
 }
 
 impl Default for Game {
     fn default() -> Self {
-	Self::new()
+        Self::new()
     }
 }
 
@@ -87,18 +109,23 @@ impl Game {
     #[must_use]
     pub fn new() -> Game {
         Game {
-            player: Player::White,
+            side: Side::X,
             board: [[FieldState(None); 3]; 3],
         }
     }
 
     #[must_use]
-    pub fn player(&self) -> Player {
-        self.player
+    pub fn side(&self) -> Side {
+        self.side
     }
 
     #[must_use]
-    pub fn get(&self, name: &FieldName) -> FieldState {
+    pub fn board(&self) -> &Board {
+        &self.board
+    }
+
+    #[must_use]
+    pub fn get(&self, name: FieldName) -> FieldState {
         self.board[name.v as usize][name.h as usize]
     }
 
@@ -159,28 +186,25 @@ impl Game {
             ],
         ];
 
-        for [a, b, c] in &win_lines {
+        for [a, b, c] in win_lines {
             match self.get(a).0 {
-                Some(player) if Some(player) == self.get(b).0 && Some(player) == self.get(c).0 => {
-                    return GameValue::Win(player);
+                Some(side) if Some(side) == self.get(b).0 && Some(side) == self.get(c).0 => {
+                    return GameValue::Win(side);
                 }
                 _ => continue,
             }
         }
 
-        // if there is a win_line with at most a single player, then a win is still possible
-        for [a, b, c] in &win_lines {
+        // if there is a win_line with at most a single side, then a win is still possible
+        for [a, b, c] in win_lines {
             match self.get(a).0 {
-                Some(player)
-                    if Some(player.next()) != self.get(b).0
-                        && Some(player.next()) != self.get(c).0 =>
+                Some(side)
+                    if Some(side.next()) != self.get(b).0 && Some(side.next()) != self.get(c).0 =>
                 {
                     return GameValue::Unknown
                 }
                 None => match self.get(b).0 {
-                    Some(player) if Some(player.next()) != self.get(c).0 => {
-                        return GameValue::Unknown
-                    }
+                    Some(side) if Some(side.next()) != self.get(c).0 => return GameValue::Unknown,
                     None => return GameValue::Unknown,
                     _ => continue,
                 },
@@ -194,13 +218,13 @@ impl Game {
     #[must_use]
     pub fn is_valid_action(&self, field_name: FieldName) -> bool {
         // an action is valid if it fills an empty field
-        self.get(&field_name).is_empty()
+        self.get(field_name).is_empty()
     }
 
     pub fn act(&mut self, field_name: FieldName) -> bool {
         if self.is_valid_action(field_name) {
-            self.set(field_name, FieldState(Some(self.player)));
-            self.player = self.player.next();
+            self.set(field_name, FieldState(Some(self.side)));
+            self.side = self.side.next();
             true
         } else {
             false
@@ -208,26 +232,23 @@ impl Game {
     }
 }
 
-impl std::fmt::Display for Game {
+impl Display for Game {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "It is {:?}'s turn.", self.player)?;
         let width = 3;
-        writeln!(
-            f,
-            "{:width$}{l:^width$}{m:^width$}{r:^width$}",
-            "",
-            l = "l",
-            m = "m",
-            r = "r",
-            width = width
-        )?;
-        for (symbol, row) in ['t', 'm', 'b'].iter().zip(self.board.iter()) {
-            write!(f, "{symbol:^width$}")?;
-            for field in row {
-                write!(f, "{:^width$}", format!("{}", field), width = width)?;
-            }
-            writeln!(f)?;
+        for (border, fields) in std::iter::once("╭───┬───┬───╮")
+            .chain(std::iter::repeat("├───┼───┼───┤"))
+            .zip(self.board.iter().map(|row| {
+                format!(
+                    "│{:^width$}│{:^width$}│{:^width$}│",
+                    format!("{}", row[0]),
+                    format!("{}", row[1]),
+                    format!("{}", row[2])
+                )
+            }))
+        {
+            writeln!(f, "{border}\n{fields}")?;
         }
-	Ok(())
+        writeln!(f, "╰───┴───┴───╯")?;
+        Ok(())
     }
 }
