@@ -20,21 +20,11 @@ fn main() {
     println!("Welcome to tic-tac-toe!\n{}", INSTRUCTIONS);
     let mut game = Game::new();
     loop {
-        println!("{}", &game);
-
+        print!("{}", &game);
+        print!("{}", game.state());
+        std::io::stdout().flush().unwrap();
         match game.state() {
-            State::Win(winner) => {
-                println!("The game ended in a win for {winner}!");
-                break;
-            }
-            State::Draw => {
-                println!("The game ended in a draw...");
-                break;
-            }
             State::Play(side) => {
-                print!("Player {side} to move: ");
-                std::io::stdout().flush().unwrap();
-
                 // read input
                 let mut input = String::new();
                 std::io::stdin()
@@ -95,6 +85,10 @@ fn main() {
                     println!("Your move is not valid, because that square is already occupied.");
                     continue;
                 }
+            }
+            _ => {
+                println!();
+                break;
             }
         }
     }

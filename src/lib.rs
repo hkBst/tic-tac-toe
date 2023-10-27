@@ -1,6 +1,6 @@
 //! A simple and safe [tic-tac-toe](https://en.wikipedia.org/wiki/Tic-tac-toe) implementation.
 
-use std::fmt::Display;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 /// sides of play
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -20,7 +20,7 @@ impl Side {
 }
 
 impl Display for Side {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self {
             Side::X => write!(f, "×")?, // or ❌
             Side::O => write!(f, "○")?, // or ⭕
@@ -41,7 +41,7 @@ impl FieldState {
 }
 
 impl Display for FieldState {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self.0 {
             None => write!(f, " ")?,
             Some(p) => write!(f, "{p}")?,
@@ -74,7 +74,7 @@ pub struct FieldName {
 }
 
 impl Display for FieldName {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         write!(f, "{:?}", self.v)?;
         write!(f, ", ")?;
         write!(f, "{:?}", self.h)?;
@@ -88,6 +88,20 @@ pub enum State {
     Play(Side),
     Win(Side),
     Draw,
+}
+
+impl Display for State {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        write!(
+            f,
+            "{}",
+            match self {
+                State::Play(side) => format!("Player {side} to move..."),
+                State::Win(side) => format!("Player {side} has won!"),
+                State::Draw => "Game ended in a draw.".to_string(),
+            }
+        )
+    }
 }
 
 type Board = [[FieldState; 3]; 3];
@@ -243,7 +257,7 @@ impl Game {
 }
 
 impl Display for Game {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         let width = 3;
         for (border, fields) in std::iter::once("╭───┬───┬───╮")
             .chain(std::iter::repeat("├───┼───┼───┤"))
