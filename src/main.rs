@@ -2,7 +2,7 @@
 
 use std::io::Write; // for flush
 
-use tic_tac_toe::{FieldName, Game, GameValue, Hor, Vert};
+use tic_tac_toe::{FieldName, Game, Hor, State, Vert};
 
 static INSTRUCTIONS: &str = "\
 Moves can be made using several methods:
@@ -22,18 +22,18 @@ fn main() {
     loop {
         println!("{}", &game);
 
-        match game.game_value() {
-            GameValue::Win(winner) => {
+        match game.state() {
+            State::Win(winner) => {
                 println!("The game ended in a win for {winner}!");
                 break;
             }
-            GameValue::Draw => {
+            State::Draw => {
                 println!("The game ended in a draw...");
                 break;
             }
-            GameValue::Unknown => {
-		print!("Player {} to move: ", game.side());
-		std::io::stdout().flush().unwrap();
+            State::Play(side) => {
+                print!("Player {side} to move: ");
+                std::io::stdout().flush().unwrap();
 
                 // read input
                 let mut input = String::new();
@@ -90,7 +90,7 @@ fn main() {
                     }
                 };
                 // then try to perform that action
-                println!("{} moves: {}", game.side(), action);
+                println!("{side} moves: {action}");
                 if !game.act(action) {
                     println!("Your move is not valid, because that square is already occupied.");
                     continue;

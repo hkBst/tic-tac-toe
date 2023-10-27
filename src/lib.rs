@@ -22,8 +22,8 @@ impl Side {
 impl Display for Side {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Side::X => write!(f, "×")?,// or ❌
-            Side::O => write!(f, "○")?,// or ⭕
+            Side::X => write!(f, "×")?, // or ❌
+            Side::O => write!(f, "○")?, // or ⭕
         }
         Ok(())
     }
@@ -82,20 +82,20 @@ impl Display for FieldName {
     }
 }
 
-/// value of a gamestate
+/// state of play
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum GameValue {
-    Unknown,
-    Draw,
+pub enum State {
+    Play(Side),
     Win(Side),
+    Draw,
 }
 
 type Board = [[FieldState; 3]; 3];
 
-/// board and side to play
+/// board and state of play
 #[derive(Clone, Debug)]
 pub struct Game {
-    side: Side,
+    state: State,
     board: Board,
 }
 
@@ -109,14 +109,19 @@ impl Game {
     #[must_use]
     pub fn new() -> Game {
         Game {
-            side: Side::X,
+            state: State::Play(Side::X),
             board: [[FieldState(None); 3]; 3],
         }
     }
 
     #[must_use]
-    pub fn side(&self) -> Side {
-        self.side
+    pub fn state(&self) -> State {
+        self.state
+    }
+
+    #[must_use]
+    pub fn playing(&self) -> bool {
+        matches!(self.state, State::Play(_))
     }
 
     #[must_use]
@@ -134,7 +139,22 @@ impl Game {
     }
 
     #[must_use]
-    pub fn game_value(&self) -> GameValue {
+    fn is_empty(&self, field_name: FieldName) -> bool {
+        self.get(field_name).is_empty()
+    }
+
+    pub fn act(&mut self, field_name: FieldName) -> bool {
+        match self.state {
+            State::Play(side) if self.is_empty(field_name) => {
+                self.set(field_name, FieldState(Some(side)));
+                self.update_state(side);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn update_state(&mut self, side: Side) {
         let hor = |v: Vert| {
             [
                 FieldName { h: Hor::Left, v },
@@ -188,8 +208,9 @@ impl Game {
 
         for [a, b, c] in win_lines {
             match self.get(a).0 {
-                Some(side) if Some(side) == self.get(b).0 && Some(side) == self.get(c).0 => {
-                    return GameValue::Win(side);
+                Some(s) if Some(s) == self.get(b).0 && Some(s) == self.get(c).0 => {
+                    self.state = State::Win(s);
+                    return;
                 }
                 _ => continue,
             }
@@ -198,37 +219,26 @@ impl Game {
         // if there is a win_line with at most a single side, then a win is still possible
         for [a, b, c] in win_lines {
             match self.get(a).0 {
-                Some(side)
-                    if Some(side.next()) != self.get(b).0 && Some(side.next()) != self.get(c).0 =>
-                {
-                    return GameValue::Unknown
+                Some(s) if Some(s.next()) != self.get(b).0 && Some(s.next()) != self.get(c).0 => {
+                    self.state = State::Play(side.next());
+                    return;
                 }
                 None => match self.get(b).0 {
-                    Some(side) if Some(side.next()) != self.get(c).0 => return GameValue::Unknown,
-                    None => return GameValue::Unknown,
+                    Some(s) if Some(s.next()) != self.get(c).0 => {
+                        self.state = State::Play(side.next());
+                        return;
+                    }
+                    None => {
+                        self.state = State::Play(side.next());
+                        return;
+                    }
                     _ => continue,
                 },
                 _ => continue,
             }
         }
 
-        GameValue::Draw
-    }
-
-    #[must_use]
-    pub fn is_valid_action(&self, field_name: FieldName) -> bool {
-        // an action is valid if it fills an empty field
-        self.get(field_name).is_empty()
-    }
-
-    pub fn act(&mut self, field_name: FieldName) -> bool {
-        if self.is_valid_action(field_name) {
-            self.set(field_name, FieldState(Some(self.side)));
-            self.side = self.side.next();
-            true
-        } else {
-            false
-        }
+        self.state = State::Draw;
     }
 }
 
