@@ -96,9 +96,9 @@ impl Display for State {
             f,
             "{}",
             match self {
-                State::Play(side) => format!("Player {side} to move..."),
-                State::Win(side) => format!("Player {side} has won!"),
-                State::Draw => "Game ended in a draw.".to_string(),
+                State::Play(side) => format!("{side} to move... "),
+                State::Win(side) => format!("{side} wins"),
+                State::Draw => "It's a draw".to_string(),
             }
         )
     }
